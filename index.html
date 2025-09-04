@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Chat Client</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.5); /* slate-800 with transparency */
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569; /* slate-600 */
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b; /* slate-500 */
+        }
+        .message-bubble {
+            max-width: 85%;
+        }
+        @media (min-width: 640px) {
+            .message-bubble {
+                max-width: 75%;
+            }
+        }
+
+        /* --- NEW ANIMATIONS --- */
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.98); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; transform: scale(1); }
+            to { opacity: 0; transform: scale(0.98); }
+        }
+        @keyframes slideInUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideInFromLeft {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInFromRight {
+            from { opacity: 0; transform: translateX(30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInFromTop {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
+        .animate-fade-out { animation: fadeOut 0.4s ease-in forwards; }
+        .animate-slide-in-up { animation: slideInUp 0.4s ease-out forwards; }
+        .animate-slide-in-left { animation: slideInFromLeft 0.6s ease-out forwards; }
+        .animate-slide-in-right { animation: slideInFromRight 0.6s ease-out forwards; }
+        .animate-slide-in-top { animation: slideInFromTop 0.5s ease-out forwards; }
+
+        /* Staggered animation delays */
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-400 { animation-delay: 400ms; }
+
+        /* Initial state for animations */
+        .initial-hidden { opacity: 0; }
+
+        /* --- VIEW TRANSITION --- */
+        .view-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Sidebar transition for mobile */
+        #sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-gray-200 bg-gradient-to-tr from-slate-900 via-gray-900 to-blue-900/70">
+
+    <div id="app" class="h-screen relative">
+
+        <!-- Login View Wrapper -->
+        <div id="login-wrapper" class="h-screen flex flex-col items-center justify-center p-4 transition-opacity duration-400 ease-in-out">
+            <div id="login-view" class="w-full max-w-4xl bg-slate-800/40 backdrop-blur-md border border-white/10 rounded-lg shadow-2xl overflow-hidden">
+                <div class="md:flex">
+                    <!-- Decorative Left Panel -->
+                    <div class="hidden md:flex flex-col justify-center items-center p-12 bg-slate-900/30 md:w-1/2 text-center initial-hidden animate-slide-in-left">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-sky-400 drop-shadow-lg"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        <h2 class="text-3xl font-bold text-white mt-6 initial-hidden animate-slide-in-up delay-100">Real-Time Chat</h2>
+                        <p class="text-slate-400 mt-2 max-w-sm initial-hidden animate-slide-in-up delay-200">Connect with friends and colleagues in real-time. Join a room and start the conversation.</p>
+                    </div>
+                    <!-- Login Form -->
+                    <div class="p-8 md:p-12 w-full md:w-1/2 initial-hidden animate-slide-in-right">
+                        <h1 class="text-3xl font-bold text-center text-white mb-2 md:hidden">Chat Room</h1>
+                        <h1 class="text-3xl font-bold text-left text-white mb-2 hidden md:block initial-hidden animate-slide-in-up delay-100">Login</h1>
+                        <p class="text-center md:text-left text-gray-400 mb-6 initial-hidden animate-slide-in-up delay-200">Enter your username to connect</p>
+                        <form id="login-form">
+                             <div class="mb-4 text-center md:text-left initial-hidden animate-slide-in-up delay-300">
+                                <p class="text-sm text-gray-400 mb-1">Connecting to</p>
+                                <div class="inline-flex items-center justify-center bg-slate-700/30 border border-white/10 rounded-lg px-3 py-2">
+                                    <span class="relative flex h-3 w-3 mr-3">
+                                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                      <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                                    </span>
+                                    <p class="text-lg font-semibold bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+                                        Main Server
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="mb-6 initial-hidden animate-slide-in-up delay-300">
+                                <label for="username" class="block text-sm font-medium text-gray-300 mb-2">Username</label>
+                                <input type="text" id="username" placeholder="e.g., alice" class="w-full bg-slate-700/30 border border-white/10 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" required>
+                            </div>
+                            <button type="submit" class="w-full bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 transform hover:scale-105 active:scale-100 shadow-lg shadow-sky-500/30 initial-hidden animate-slide-in-up delay-400 flex items-center justify-center h-10">
+                                <span class="button-text">Connect</span>
+                                <svg class="animate-spin h-5 w-5 text-white hidden button-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </button>
+                            <p id="login-error" class="text-red-400 text-sm mt-4 text-center md:text-left h-5"></p>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat View -->
+        <div id="chat-view" class="w-full h-full flex flex-col bg-slate-800/40 backdrop-blur-md overflow-hidden absolute top-0 left-0 view-hidden">
+            <!-- Header -->
+            <header id="chat-header" class="flex items-center justify-between p-4 border-b border-white/10 flex-shrink-0">
+                <div class="flex items-center">
+                    <button id="menu-btn" class="mr-2 p-1 md:hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-sky-400 mr-2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    <h1 class="text-xl font-bold text-white">Chat Room</h1>
+                </div>
+                <div>
+                    <span class="text-sm text-gray-400 hidden sm:inline">Logged in as: <strong id="display-username" class="text-sky-400"></strong></span>
+                    <button id="logout-btn" class="ml-4 text-sm bg-red-600 hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-lg transition-all transform hover:scale-105">Logout</button>
+                </div>
+            </header>
+
+            <!-- Main Content -->
+            <main class="flex flex-grow overflow-hidden relative">
+                <!-- Mobile Overlay -->
+                <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 md:hidden hidden"></div>
+                <!-- Sidebar -->
+                <aside id="sidebar" class="w-4/5 sm:w-1/2 md:w-1/4 xl:w-1/5 p-4 border-r border-white/10 flex flex-col flex-shrink-0
+                                          absolute md:static inset-y-0 left-0 z-40 bg-slate-800/80 md:bg-transparent backdrop-blur-lg md:backdrop-blur-none
+                                          -translate-x-full md:translate-x-0">
+                    <div class="flex-shrink-0">
+                         <button id="close-menu-btn" class="absolute top-3 right-3 p-1 md:hidden">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                        <h2 class="text-lg font-semibold mb-2 mt-8 md:mt-0">Subscribe to Room</h2>
+                        <form id="subscribe-form" class="flex mb-4">
+                            <input type="text" id="room-name" placeholder="e.g., general" class="flex-grow bg-slate-700/30 border border-white/10 rounded-l-lg px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none min-w-0">
+                            <button type="submit" class="bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 text-white font-bold px-4 py-2 rounded-r-lg text-sm transition-all transform hover:scale-105 active:scale-100">+</button>
+                        </form>
+                    </div>
+                    
+                    <div class="flex-grow overflow-y-auto custom-scrollbar pr-2">
+                        <div class="mb-4">
+                            <h2 class="text-lg font-semibold mb-2">Subscribed Rooms</h2>
+                            <div id="room-list">
+                                <!-- Room list will be populated here -->
+                            </div>
+                        </div>
+                        <div>
+                           <h2 class="text-lg font-semibold mb-2">Users in <span id="current-room-name" class="font-normal text-gray-400"></span> (<span id="user-count">0</span>)</h2>
+                           <div id="user-list">
+                                <!-- User list will be populated here -->
+                           </div>
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Chat Panel -->
+                <section id="chat-panel" class="flex-1 flex flex-col min-w-0">
+                    <!-- Message Display -->
+                    <div id="messages-container" class="flex-grow p-4 overflow-y-auto custom-scrollbar">
+                        <!-- Messages will be populated here -->
+                         <div class="flex justify-center items-center h-full chat-placeholder">
+                            <div class="text-center text-gray-500">
+                                <p>Welcome to the chat!</p>
+                                <p>Subscribe to a room to start seeing messages.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Message Input -->
+                    <footer class="p-4 border-t border-white/10 flex-shrink-0">
+                        <form id="message-form" class="flex items-center">
+                            <select id="active-room-select" class="bg-slate-700/30 border border-white/10 rounded-l-lg px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none mr-2">
+                                <option value="">Select a room</option>
+                            </select>
+                            <input type="text" id="message-input" placeholder="Type your message..." class="flex-grow bg-slate-700/30 border border-white/10 px-3 py-2 focus:ring-2 focus:ring-sky-500 focus:outline-none" autocomplete="off" required>
+                            <button type="submit" class="bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-600 hover:to-indigo-600 text-white font-bold px-6 py-2 rounded-r-lg transition-all transform hover:scale-105 active:scale-100 shadow-lg shadow-sky-500/30">Send</button>
+                        </form>
+                    </footer>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // DOM Elements
+        const loginWrapper = document.getElementById('login-wrapper');
+        const loginView = document.getElementById('login-view');
+        const chatView = document.getElementById('chat-view');
+        const loginForm = document.getElementById('login-form');
+        const usernameInput = document.getElementById('username');
+        const loginError = document.getElementById('login-error');
+        const displayUsername = document.getElementById('display-username');
+        const logoutBtn = document.getElementById('logout-btn');
+        const subscribeForm = document.getElementById('subscribe-form');
+        const roomNameInput = document.getElementById('room-name');
+        const roomList = document.getElementById('room-list');
+        const messagesContainer = document.getElementById('messages-container');
+        const messageForm = document.getElementById('message-form');
+        const activeRoomSelect = document.getElementById('active-room-select');
+        const messageInput = document.getElementById('message-input');
+        const userListContainer = document.getElementById('user-list');
+        const userCountSpan = document.getElementById('user-count');
+        const currentRoomNameSpan = document.getElementById('current-room-name');
+        
+        const connectButton = loginForm.querySelector('button[type="submit"]');
+        const buttonText = connectButton.querySelector('.button-text');
+        const buttonSpinner = connectButton.querySelector('.button-spinner');
+
+        // Chat View Animated Elements
+        const chatHeader = document.getElementById('chat-header');
+        const chatPanel = document.getElementById('chat-panel');
+        
+        // Responsive Elements
+        const menuBtn = document.getElementById('menu-btn');
+        const closeMenuBtn = document.getElementById('close-menu-btn');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarOverlay = document.getElementById('sidebar-overlay');
+
+        // State
+        const SERVER_URL = "ws://localhost:2024";
+        let ws = null;
+        let username = '';
+        const subscribedRooms = new Set();
+        let roomUsers = {}; // {'room1': ['userA', 'userB']}
+        let isLoggingOut = false;
+        
+        function setConnectingState(isConnecting) {
+            connectButton.disabled = isConnecting;
+            if (isConnecting) {
+                buttonText.classList.add('hidden');
+                buttonSpinner.classList.remove('hidden');
+            } else {
+                buttonText.classList.remove('hidden');
+                buttonSpinner.classList.add('hidden');
+            }
+        }
+
+        function switchToChatView() {
+            loginWrapper.classList.add('animate-fade-out');
+            
+            loginWrapper.addEventListener('animationend', () => {
+                loginWrapper.classList.add('view-hidden');
+                chatView.classList.remove('view-hidden');
+                
+                // Animate chat view components
+                chatHeader.classList.add('initial-hidden', 'animate-slide-in-top');
+                sidebar.classList.add('initial-hidden', 'animate-slide-in-left', 'delay-100');
+                chatPanel.classList.add('initial-hidden', 'animate-fade-in', 'delay-200');
+
+                const cleanup = (el, classes) => el.addEventListener('animationend', () => el.classList.remove(...classes), { once: true });
+                cleanup(chatHeader, ['initial-hidden', 'animate-slide-in-top']);
+                cleanup(sidebar, ['initial-hidden', 'animate-slide-in-left', 'delay-100']);
+                cleanup(chatPanel, ['initial-hidden', 'animate-fade-in', 'delay-200']);
+
+            }, { once: true });
+        }
+
+        function switchToLoginView() {
+            chatView.classList.add('animate-fade-out');
+            
+            chatView.addEventListener('animationend', () => {
+                chatView.classList.add('view-hidden');
+                chatView.classList.remove('animate-fade-out');
+
+                loginWrapper.classList.remove('view-hidden', 'animate-fade-out');
+                loginWrapper.classList.add('animate-fade-in');
+                loginWrapper.addEventListener('animationend', () => loginWrapper.classList.remove('animate-fade-in'), {once: true});
+            }, { once: true });
+        }
+
+        // --- WebSocket Logic ---
+
+        function connect(serverUrl, user) {
+            username = user;
+            loginError.textContent = '';
+            setConnectingState(true);
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+
+            ws = new WebSocket(serverUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connection established.');
+                ws.send(JSON.stringify({
+                    action: 'login',
+                    username: username
+                }));
+            };
+
+            ws.onmessage = (event) => {
+                handleIncomingMessage(JSON.parse(event.data));
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket connection closed.');
+                setConnectingState(false);
+                if (!isLoggingOut) {
+                    showSystemNotification('Connection lost. Please login again.');
+                    resetToLoginView();
+                }
+                isLoggingOut = false;
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                loginError.textContent = 'Connection failed. Is the server running?';
+                setConnectingState(false);
+            };
+        }
+
+        function handleIncomingMessage(data) {
+            console.log('Received:', data);
+            switch (data.type) {
+                case 'ok':
+                    if (data.action === 'login') {
+                        // The button state is reset on successful transition
+                        switchToChatView();
+                        displayUsername.textContent = username;
+                    }
+                    break;
+                case 'error':
+                    if (data.action === 'login') {
+                        loginError.textContent = `Login failed: ${data.reason}`;
+                        setConnectingState(false);
+                        ws.close();
+                    } else {
+                        showSystemNotification(`Error: ${data.reason}`, 'error');
+                    }
+                    break;
+                case 'system':
+                    if (data.event === 'subscribed') {
+                        data.rooms.forEach(room => subscribedRooms.add(room));
+                        updateRoomListUI();
+                    } else if (data.event === 'unsubscribed') {
+                        data.rooms.forEach(room => {
+                           subscribedRooms.delete(room);
+                           delete roomUsers[room];
+                        });
+                        updateRoomListUI();
+                    } else if (data.event === 'join' || data.event === 'leave') {
+                         if (subscribedRooms.has(data.room)) { // Only show if user is in that room
+                            showSystemNotification(`'${data.username}' has ${data.event} #${data.room}`, 'info', data.room);
+                            filterAndDisplayMessages(); // <-- FIX: Refresh the view immediately
+                         }
+                    } else {
+                        showSystemNotification(data.message);
+                        filterAndDisplayMessages(); // <-- FIX: Also refresh for other system messages
+                    }
+                    break;
+                case 'history':
+                    showSystemNotification(`--- History for #${data.room} ---`, 'info', data.room);
+                    data.messages.forEach(msg => addMessageToUI(msg, false)); // Don't animate history
+                    showSystemNotification(`--- End of history ---`, 'info', data.room);
+                    filterAndDisplayMessages(); // <<< CHANGE: Filter messages after loading history
+                    break;
+                case 'message':
+                    addMessageToUI(data, true); // Animate new messages
+                    filterAndDisplayMessages(); // <<< CHANGE: Filter messages after receiving a new one
+                    break;
+                case 'room_update':
+                    roomUsers[data.room] = data.users;
+                    if (activeRoomSelect.value === data.room) {
+                        updateUserListUI();
+                    }
+                    break;
+                default:
+                    console.warn('Unknown message type:', data.type);
+            }
+        }
+        
+        function resetToLoginView() {
+            switchToLoginView();
+            setConnectingState(false);
+            subscribedRooms.clear();
+            roomUsers = {};
+            setTimeout(() => {
+                messagesContainer.innerHTML = `
+                    <div class="flex justify-center items-center h-full chat-placeholder">
+                        <div class="text-center text-gray-500">
+                            <p>Welcome to the chat!</p>
+                            <p>Subscribe to a room to start seeing messages.</p>
+                        </div>
+                    </div>`;
+                roomList.innerHTML = '';
+                userListContainer.innerHTML = '';
+                userCountSpan.textContent = '0';
+                currentRoomNameSpan.textContent = '';
+                activeRoomSelect.innerHTML = '<option value="">Select a room</option>';
+            }, 400); // Clear after transition
+           
+            if(ws && ws.readyState === WebSocket.OPEN) {
+                 ws.send(JSON.stringify({ action: 'logout' }));
+                 ws.close();
+            }
+            ws = null;
+        }
+
+        // --- UI Update Functions ---
+
+        function updateRoomListUI() {
+            const currentSelection = activeRoomSelect.value;
+            roomList.innerHTML = '';
+            activeRoomSelect.innerHTML = '<option value="">Select a room</option>';
+            const sortedRooms = Array.from(subscribedRooms).sort();
+
+            sortedRooms.forEach(room => {
+                const roomEl = document.createElement('div');
+                roomEl.className = 'flex justify-between items-center p-2 rounded-lg hover:bg-sky-900/50 cursor-pointer animate-slide-in-up';
+                roomEl.textContent = `#${room}`;
+                
+                const unsubBtn = document.createElement('button');
+                unsubBtn.textContent = '×';
+                unsubBtn.className = 'text-red-400 hover:text-red-200 font-bold ml-2';
+                unsubBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    ws.send(JSON.stringify({ action: 'unsubscribe', rooms: [room] }));
+                };
+                roomEl.appendChild(unsubBtn);
+                roomList.appendChild(roomEl);
+
+                const optionEl = document.createElement('option');
+                optionEl.value = room;
+                optionEl.textContent = `#${room}`;
+                activeRoomSelect.appendChild(optionEl);
+            });
+            
+            // Restore selection if possible
+            if (subscribedRooms.has(currentSelection)) {
+                activeRoomSelect.value = currentSelection;
+            } else if (activeRoomSelect.options.length > 1) {
+                activeRoomSelect.selectedIndex = 1;
+            }
+            updateUserListUI();
+            filterAndDisplayMessages(); // <<< CHANGE: Filter messages when room list changes
+        }
+
+        function updateUserListUI() {
+            const selectedRoom = activeRoomSelect.value;
+            if (selectedRoom) {
+                const users = roomUsers[selectedRoom] || [];
+                userCountSpan.textContent = users.length;
+                currentRoomNameSpan.textContent = `#${selectedRoom}`;
+                userListContainer.innerHTML = users.map(user => {
+                    const isCurrentUser = user === username;
+                    const fontWeight = 'font-semibold'; // Make all users bold
+                    const color = isCurrentUser ? 'text-sky-300' : 'text-cyan-400';
+                    const youText = isCurrentUser ? ' (You)' : '';
+                    
+                    return `<div class="p-1.5 text-sm rounded-lg ${fontWeight} ${color} animate-fade-in">${user}${youText}</div>`;
+                }).join('');
+            } else {
+                userCountSpan.textContent = 0;
+                currentRoomNameSpan.textContent = '';
+                userListContainer.innerHTML = '<div class="p-1.5 text-sm text-gray-500 italic">No room selected</div>';
+            }
+        }
+
+        // <<< NEW FUNCTION: To show/hide messages based on the selected room
+        function filterAndDisplayMessages() {
+            const selectedRoom = activeRoomSelect.value;
+            const allMessages = messagesContainer.querySelectorAll('[data-room]');
+            const placeholder = messagesContainer.querySelector('.chat-placeholder');
+            let hasVisibleMessages = false;
+
+            allMessages.forEach(msg => {
+                if (msg.dataset.room === selectedRoom) {
+                    msg.style.display = 'flex'; // Use 'flex' since the parent is a flex container
+                    hasVisibleMessages = true;
+                } else {
+                    msg.style.display = 'none';
+                }
+            });
+
+            // Handle placeholder visibility
+            if (placeholder) {
+                if (!selectedRoom || !hasVisibleMessages) {
+                    placeholder.style.display = 'flex';
+                } else {
+                    placeholder.style.display = 'none';
+                }
+            }
+
+            // Always scroll to bottom after filtering
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+
+        function clearPlaceholder() {
+            const placeholder = messagesContainer.querySelector('.chat-placeholder');
+            if (placeholder) {
+                // Instead of removing, we'll hide it. The filter function will manage visibility.
+                placeholder.style.display = 'none';
+            }
+        }
+
+        function addMessageToUI(data, shouldAnimate) {
+            const messageId = `msg-${data.ts}-${data.username.replace(/[^a-zA-Z0-9]/g, "_")}`;
+            if (document.getElementById(messageId)) return;
+
+            clearPlaceholder();
+
+            const msgWrapper = document.createElement('div');
+            msgWrapper.id = messageId;
+            msgWrapper.dataset.room = data.room; // <<< CHANGE: Tag message with its room
+
+            const msgBubble = document.createElement('div');
+            const timestamp = new Date(data.ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            const isMyMessage = data.username === username;
+            
+            msgWrapper.className = `flex mb-3 ${isMyMessage ? 'justify-end' : 'justify-start'}`;
+            // <<< CHANGE: Hide message by default, filter function will show it if needed
+            msgWrapper.style.display = 'none'; 
+            
+            if(shouldAnimate) msgWrapper.classList.add('animate-slide-in-up');
+
+            msgBubble.className = `message-bubble rounded-lg px-4 py-2 ${isMyMessage ? 'bg-gradient-to-br from-sky-500 to-indigo-500' : 'bg-slate-700'}`;
+            
+            let userDisplay = '';
+            if (!isMyMessage) {
+                userDisplay = `<div class="font-bold text-sm text-cyan-400">@${data.username}</div>`;
+            }
+
+            msgBubble.innerHTML = `
+                ${userDisplay}
+                <div class="text-white break-words">${data.message}</div>
+                <div class="text-xs text-gray-400 text-right mt-1">${timestamp}</div>
+            `;
+
+            msgWrapper.appendChild(msgBubble);
+            messagesContainer.appendChild(msgWrapper);
+            // Don't scroll here, scroll in the filter function
+        }
+
+        function showSystemNotification(message, type = 'info', room = null) {
+            clearPlaceholder();
+            // This wrapper will act like the `msgWrapper` for user messages
+            const wrapper = document.createElement('div');
+            wrapper.className = 'flex justify-center'; // Center the content
+            
+            const sysMsg = document.createElement('div');
+            const colorClass = type === 'error' ? 'text-red-400' : 'text-gray-500';
+            
+            // Tag the wrapper, not the message itself
+            wrapper.dataset.room = room || activeRoomSelect.value || 'system';
+            
+            sysMsg.className = `text-center text-sm my-2 italic ${colorClass} animate-slide-in-up`; // Keep styles on the message
+            sysMsg.textContent = message;
+
+            wrapper.appendChild(sysMsg);
+            
+            // Hide the wrapper by default
+            wrapper.style.display = 'none';
+
+            messagesContainer.appendChild(wrapper);
+            // Don't scroll here, scroll in the filter function
+        }
+        
+        // --- Mobile Sidebar Logic ---
+        function openSidebar() {
+            sidebar.classList.remove('-translate-x-full');
+            sidebarOverlay.classList.remove('hidden');
+        }
+
+        function closeSidebar() {
+            sidebar.classList.add('-translate-x-full');
+            sidebarOverlay.classList.add('hidden');
+        }
+
+        // --- Event Listeners ---
+        
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const user = usernameInput.value.trim();
+            if (user) {
+                connect(SERVER_URL, user);
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            isLoggingOut = true;
+            resetToLoginView();
+        });
+
+        subscribeForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const roomNames = roomNameInput.value.trim();
+            if (roomNames && ws) {
+                const rooms = roomNames.split(',').map(r => r.trim()).filter(Boolean);
+                if(rooms.length > 0) ws.send(JSON.stringify({ action: 'subscribe', rooms: rooms }));
+                roomNameInput.value = '';
+            }
+            // Close sidebar on mobile after subscribing
+            if (window.innerWidth < 768) closeSidebar();
+        });
+
+        messageForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const room = activeRoomSelect.value;
+            const message = messageInput.value.trim();
+            if (room && message && ws) {
+                ws.send(JSON.stringify({ action: 'publish', room, message }));
+                messageInput.value = '';
+            }
+        });
+
+        activeRoomSelect.addEventListener('change', () => {
+            updateUserListUI();
+            filterAndDisplayMessages(); // <<< CHANGE: Filter messages on room selection change
+            // Close sidebar on mobile after selecting a room
+            if (window.innerWidth < 768) closeSidebar();
+        });
+        
+        menuBtn.addEventListener('click', openSidebar);
+        closeMenuBtn.addEventListener('click', closeSidebar);
+        sidebarOverlay.addEventListener('click', closeSidebar);
+
+    });
+    </script>
+</body>
+</html>
+
